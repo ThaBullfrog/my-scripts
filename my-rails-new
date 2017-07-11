@@ -1,0 +1,238 @@
+#!/bin/bash
+
+# my-rails-new <app-name> <git-repository> <server-ip-or-domain> <user-name> <secret-key-env-var-name> <database-password-env-var-name>
+
+set +H
+
+# Create the app
+rails _5.1.2_ new $1
+cd $1
+
+# Setup gems
+# ------ GEMFILE ----------------------------------------------------------------------------
+echo "source 'https://rubygems.org'
+
+git_source(:github) do |repo_name|
+  repo_name = \"#{repo_name}/#{repo_name}\" unless repo_name.include?(\"/\")
+  \"https://github.com/#{repo_name}.git\"
+end
+
+
+# Bundle edge Rails instead: gem 'rails', github: 'rails/rails'
+gem 'rails', '~> 5.1.2'
+# Use Puma as the app server
+gem 'puma', '~> 3.0'
+# Use SCSS for stylesheets
+gem 'sass-rails', '~> 5.0'
+# Use Uglifier as compressor for JavaScript assets
+gem 'uglifier', '>= 1.3.0'
+# Use CoffeeScript for .coffee assets and views
+gem 'coffee-rails', '~> 4.2'
+# See https://github.com/rails/execjs#readme for more supported runtimes
+# gem 'therubyracer', platforms: :ruby
+
+# Use jquery as the JavaScript library
+gem 'jquery-rails', '~> 4.3'
+# Turbolinks makes navigating your web application faster. Read more: https://github.com/turbolinks/turbolinks
+gem 'turbolinks', '~> 5'
+# Build JSON APIs with ease. Read more: https://github.com/rails/jbuilder
+gem 'jbuilder', '~> 2.5'
+# Use Redis adapter to run Action Cable in production
+# gem 'redis', '~> 3.0'
+# Use ActiveModel has_secure_password
+# gem 'bcrypt', '~> 3.1.7'
+
+# Use Capistrano for deployment
+gem 'capistrano', '~> 3.8'
+gem 'capistrano-rails', '~> 1.2'
+gem 'capistrano-passenger', '~> 0.2'
+gem 'capistrano-rvm', '~>0.1'
+
+# Use bootstrap to help make the site mobile ready
+gem 'bootstrap-sass', '~> 3.3'
+
+group :development, :test do
+  gem 'sqlite3', '~> 1.3'
+  # Call 'byebug' anywhere in the code to stop execution and get a debugger console
+  gem 'byebug', '~> 9.0', platform: :mri
+end
+
+group :development do
+  # Access an IRB console on exception pages or by using <%= console %> anywhere in the code.
+  gem 'web-console', '>= 3.3.0'
+  gem 'listen', '~> 3.0.5'
+  # Spring speeds up development by keeping your application running in the background. Read more: https://github.com/rails/spring
+  gem 'spring', '~> 2.0'
+  gem 'spring-watcher-listen', '~> 2.0.0'
+end
+
+group :test do
+  gem 'rails-controller-testing', '~> 1.0'
+  gem 'minitest-reporters',       '~> 1.1'
+  gem 'guard',                    '~> 2.14'
+  gem 'guard-minitest',           '~> 2.4'
+end
+
+group :production do
+  gem 'pg', '~> 0.20'
+end
+
+# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]" > Gemfile
+# -------------------------------------------------------------------------------------------
+bundle update
+bundle install --without production
+
+# Setup Bootstrap
+rm app/assets/stylesheets/application.css
+echo '@import "bootstrap-sprockets";
+@import "bootstrap";
+
+' > app/assets/stylesheets/application.scss
+echo '//= require jquery
+//= require bootstrap-sprockets
+' >> app/assets/javascripts/application.js
+
+# Setup layouts
+# ------ APPLICATION LAYOUT -----------------------------------------------------------------
+echo "<!DOCTYPE html>
+<html lang=\"en\">
+  <head>
+    <title>$1</title>
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <%= render 'layouts/rails_default' %>
+    <%= render 'layouts/shim' %>
+  </head>
+
+  <body>
+    <%= render 'layouts/header' %>
+    <div class=\"container\">
+      <%= show_flashes %>
+      <%= yield %>
+    </div>
+  </body>
+</html>
+" > app/views/layouts/application.html.erb
+# -------------------------------------------------------------------------------------------
+# ------ APPLICATION HELPER (for show_flashes) ----------------------------------------------
+echo "module ApplicationHelper
+
+  def show_flashes
+    returns = Array.new
+    flash.each do |message_type, message|
+      returns.push((\"<div class=\\\"alert alert-\" + message_type + \"\\\">\" + message + \"</div>\"))
+    end
+    return returns.join.html_safe
+  end
+  
+  def show_errors(errors)
+    str = '<div class=\"alert alert-danger\">'
+    errors.each_with_index do |error, i|
+      str += '&bull;&nbsp;'
+      str += error
+      unless(i == errors.length - 1)
+        str += \"<br>\"
+      end
+    end
+    str += '</div><br>'
+    render html: str.html_safe
+  end
+
+end
+" > app/helpers/application_helper.rb
+# -------------------------------------------------------------------------------------------
+# ------ RAILS DEFAULT LAYOUT ---------------------------------------------------------------
+echo "<%= csrf_meta_tags %>
+
+<%= stylesheet_link_tag    'application', media: 'all', 'data-turbolinks-track': 'reload' %>
+<%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %>
+" > app/views/layouts/_rails_default.html.erb
+# -------------------------------------------------------------------------------------------
+# ------ SHIM LAYOUT ------------------------------------------------------------------------
+echo "<!--[if lt IE 9]>
+  <script src=\"//cdnjs.cloudflare.com/ajax/libs/html5shiv/r29/html5.min.js\">
+  </script>
+<![endif]-->
+" > app/views/layouts/_shim.html.erb
+# -------------------------------------------------------------------------------------------
+# ------ HEADER LAYOUT ----------------------------------------------------------------------
+echo "<nav class=\"navbar navbar-default\">
+  <div class=\"container\">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class=\"navbar-header\">
+      <button type=\"button\" class=\"navbar-toggle collapsed\" data-toggle=\"collapse\" data-target=\"#bs-example-navbar-collapse-1\" aria-expanded=\"false\">
+        <span class=\"sr-only\">Toggle navigation</span>
+        <span class=\"icon-bar\"></span>
+        <span class=\"icon-bar\"></span>
+        <span class=\"icon-bar\"></span>
+      </button>
+      <%= link_to \"$1\", root_path, class: 'navbar-brand' %>
+    </div>
+
+    <!-- Collect the nav links, forms, and other content for toggling -->
+    <div class=\"collapse navbar-collapse\" id=\"bs-example-navbar-collapse-1\">
+      <ul class=\"nav navbar-nav\">
+        <li><%= link_to \"Home\", root_path %></li>
+      </ul>
+    </div><!-- /.navbar-collapse -->
+  </div><!-- /.container-fluid -->
+</nav>
+" > app/views/layouts/_header.html.erb
+# -------------------------------------------------------------------------------------------
+
+# Setup hello, world program
+# ------ ROUTES -----------------------------------------------------------------------------
+echo "Rails.application.routes.draw do
+  
+  root 'static_pages#home'
+
+end
+" > config/routes.rb
+# -------------------------------------------------------------------------------------------
+# ------ STATIC PAGES CONTROLLER ------------------------------------------------------------
+echo "class StaticPagesController < ApplicationController
+
+  def home
+  end
+
+end
+" > app/controllers/static_pages_controller.rb
+# -------------------------------------------------------------------------------------------
+# ------ HOME VIEW --------------------------------------------------------------------------
+mkdir app/views/static_pages
+echo "hello, world
+" > app/views/static_pages/home.html.erb
+# -------------------------------------------------------------------------------------------
+
+# Setup Capistrano
+cap install STAGES=production
+echo "
+require 'capistrano/rails'
+require 'capistrano/passenger'
+require 'capistrano/rvm'
+set :rvm_type, :user
+set :rvm_ruby_version, '2.4.1'" >> Capfile
+echo "set :application, \"$1\"
+set :repo_url, \"$2\"
+
+set :deploy_to, '/home/$4/$1'
+
+append :linked_dirs, \"log\", \"tmp/pids\", \"tmp/cache\", \"tmp/sockets\", \"vendor/bundle\", \"public/system\", \"public/uploads\"
+" > config/deploy.rb
+echo "server '$3', user: '$4', roles: %w{app db web}
+" > config/deploy/production.rb
+
+# Setup secret key and database password
+tac config/database.yml | sed "1,4d" | tac > temporaryfile && mv temporaryfile config/database.yml
+echo "
+production:
+  adapter: postgresql
+  host: 127.0.0.1
+  database: $1
+  username: $4
+  password: <%= ENV['$6'] %>
+  encoding: unicode
+  pool: 5" >> config/database.yml
+tac config/secrets.yml | sed "1,1d" | tac > temporaryfile && mv temporaryfile config/secrets.yml
+echo "  secret_key_base: <%= ENV[\"$5\"] %>
+" >> config/secrets.yml
