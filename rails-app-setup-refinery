@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# rails-app-setup-refinery <app-name> <secret-key> <secret-key-env> <database-password-env> <setup-host?(y/n)> <setup-ssl?(y/n)> <ip-or-domain> <username>
+
+# Setup env variables
+echo -n "Database password: "
+read -s password
+echo ""
+echo "
+export $4='$password'
+export $3='$2'
+
+" > ~/temporary_file
+cat ~/.bashrc >> temporary_file
+mv ~/temporary_file ~/.bashrc
+
+# Setup nginx sites-enabled
+if [ "$5" == "y" ]; then
+if [ "$6" == "y" ]; then
+echo "server {
+        listen 80;
+        listen [::]:80 ipv6only=on;
+
+        server_name $7;
+        return 301 https://$server_name$request_uri;
+        rails_env    production;
+        passenger_enabled on;
+        root         /home/$8/$1/current/public;
+
+        # redirect server error pages to the static page /50x.html
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+}
+
+server {
+
+    # SSL configuration
+
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
+    include snippets/self-signed.conf;
+    include snippets/ssl-params.conf;
+    passenger_enabled on;
+    rails_env    production;
+    root         /home/$8/$1/current/public;
+
+    # redirect server error pages to the static page /50x.html
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   html;
+    }
+}
+
+" | sudo tee /etc/nginx/sites-enabled/default
+else
+echo "server {
+        listen 80;
+        listen [::]:80 ipv6only=on;
+
+        server_name $7;
+        passenger_enabled on;
+        rails_env    production;
+        root         /home/$8/$1/current/public;
+
+        # redirect server error pages to the static page /50x.html
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+}" | sudo tee /etc/nginx/sites-enabled/default
+fi
+fi
+
+# Make database
+sudo su -c "createdb -O $8 $1" - postgres
+
+sudo systemctl restart postgresql
+sudo systemctl restart nginx

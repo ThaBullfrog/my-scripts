@@ -1,0 +1,485 @@
+# my-rails-new-refinery <app-name> <git-repository> <server-ip-or-domain> <user-name> <secret-key-env-var-name> <database-password-env-var-name>
+
+set +H
+
+[[ -s "$HOME/.rvm/scripts/rvm" ]] && . "$HOME/.rvm/scripts/rvm"
+
+rvm use 2.2.7
+
+# Create the app
+refinerycms $1
+cd $1
+
+echo "2.2.7" > .ruby-version
+
+# Setup gems
+# ------ GEMFILE ----------------------------------------------------------------------------
+echo "source 'https://rubygems.org'
+
+# Bundle edge Rails instead: gem 'rails', github: 'rails/rails'
+gem 'rails', '4.2.9'
+# Use Puma as the app server
+gem 'puma'
+# Use SCSS for stylesheets
+gem 'sass-rails', '~> 5.0'
+# Use Uglifier as compressor for JavaScript assets
+gem 'uglifier', '>= 1.3.0'
+# Use CoffeeScript for .coffee assets and views
+gem 'coffee-rails', '~> 4.1.0'
+# See https://github.com/rails/execjs#readme for more supported runtimes
+# gem 'therubyracer', platforms: :ruby
+
+# Use jquery as the JavaScript library
+gem 'jquery-rails'
+# Build JSON APIs with ease. Read more: https://github.com/rails/jbuilder
+gem 'jbuilder', '~> 2.0'
+# bundle exec rake doc:rails generates the API under doc/api.
+gem 'sdoc', '~> 0.4.0', group: :doc
+
+# Use ActiveModel has_secure_password
+gem 'bcrypt', '~> 3.1.7'
+
+# Use Unicorn as the app server
+# gem 'unicorn'
+
+# Use Capistrano for deployment
+gem 'capistrano'
+gem 'capistrano-rails'
+gem 'capistrano-passenger'
+gem 'capistrano-rvm'
+
+# Use Minitest for testing
+gem 'minitest-rails', '~> 2.2'
+
+# Use Bootstrap to help make the site mobile friendly
+gem 'bootstrap-sass'
+
+group :development, :test do
+  # Call 'byebug' anywhere in the code to stop execution and get a debugger console
+  gem 'byebug'
+end
+
+group :development do
+  # Access an IRB console on exception pages or by using <%= console %> in views
+  gem 'web-console', '~> 2.0'
+  gem 'listen'
+  # Spring speeds up development by keeping your application running in the background. Read more: https://github.com/rails/spring
+  gem 'spring'
+  gem 'spring-watcher-listen'
+end
+
+group :test do
+  gem 'sqlite3'
+  gem 'rails-controller-testing'
+  gem 'minitest-reporters'
+  gem 'guard'
+  gem 'guard-minitest'
+end
+
+group :development, :production do
+  gem 'pg'
+end
+
+# Refinery CMS
+gem 'refinerycms', '~> 3.0'
+
+# Optionally, specify additional Refinery CMS Extensions here:
+gem 'refinerycms-acts-as-indexed', ['~> 2.0', '>= 2.0.1']
+gem 'refinerycms-wymeditor', ['~> 1.0', '>= 1.0.6']
+gem 'refinerycms-authentication-devise', '~> 1.0'
+#  gem 'refinerycms-blog', ['~> 3.0', '>= 3.0.0']
+#  gem 'refinerycms-inquiries', ['~> 3.0', '>= 3.0.0']
+#  gem 'refinerycms-search', ['~> 3.0', '>= 3.0.0']
+#  gem 'refinerycms-page-images', ['~> 3.0', '>= 3.0.0']
+
+# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
+" > Gemfile
+# -------------------------------------------------------------------------------------------
+bundle update
+bundle install --without production
+
+# Setup Minitest
+rails generate minitest:install
+# ------ TEST HELPER ------------------------------------------------------------------------
+echo "ENV['RAILS_ENV'] ||= 'test'
+require File.expand_path('../../config/environment', __FILE__)
+require 'rails/test_help'
+require \"minitest/reporters\"
+Minitest::Reporters.use!
+
+class ActiveSupport::TestCase
+  # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
+  fixtures :all
+
+  # Add more helper methods to be used by all tests here...
+end
+" > test/test_helper.rb
+# -------------------------------------------------------------------------------------------
+
+# Setup Guard
+bundle exec guard init
+# ------ GUARDFILE --------------------------------------------------------------------------
+echo "# Defines the matching rules for Guard.
+guard :minitest, spring: \"bin/rake test\", all_on_start: false do
+  watch(%r{^test/(.*)/?(.*)_test\.rb$})
+  watch('test/test_helper.rb') { 'test' }
+  watch('config/routes.rb')    { integration_tests }
+  watch(%r{^app/models/(.*?)\.rb$}) do |matches|
+    \"test/models/#{matches[1]}_test.rb\"
+  end
+  watch(%r{^app/controllers/(.*?)_controller\.rb$}) do |matches|
+    resource_tests(matches[1])
+  end
+  watch(%r{^app/views/([^/]*?)/.*\.html\.erb$}) do |matches|
+    [\"test/controllers/#{matches[1]}_controller_test.rb\"] +
+    integration_tests(matches[1])
+  end
+  watch(%r{^app/helpers/(.*?)_helper\.rb$}) do |matches|
+    integration_tests(matches[1])
+  end
+end
+
+# Returns the integration tests corresponding to the given resource.
+def integration_tests(resource = :all)
+  if resource == :all
+    Dir[\"test/integration/*\"]
+  else
+    Dir[\"test/integration/#{resource}_*.rb\"]
+  end
+end
+
+# Returns the controller tests corresponding to the given resource.
+def controller_test(resource)
+  \"test/controllers/#{resource}_controller_test.rb\"
+end
+
+# Returns all tests for the given resource.
+def resource_tests(resource)
+  integration_tests(resource) << controller_test(resource)
+end
+" > Guardfile
+# -------------------------------------------------------------------------------------------
+echo "
+# Ignore Sprint files
+/spring/*.pid
+" >> .gitignore
+
+# Setup helper
+# ------ APPLICATION HELPER (for show_flashes and show_errors) ------------------------------
+echo "module ApplicationHelper
+
+  def show_flashes
+    returns = Array.new
+    flash.each do |message_type, message|
+      returns.push((\"<div class=\\\"alert alert-\" + message_type + \"\\\">\" + message + \"</div>\"))
+    end
+    return returns.join.html_safe
+  end
+  
+  def show_errors(errors)
+    str = '<div class=\"alert alert-danger\">'
+    errors.each_with_index do |error, i|
+      str += '&bull;&nbsp;'
+      str += error
+      unless(i == errors.length - 1)
+        str += \"<br>\"
+      end
+    end
+    str += '</div><br>'
+    render html: str.html_safe
+  end
+
+end
+" > app/helpers/application_helper.rb
+# -------------------------------------------------------------------------------------------
+
+# Setup Bootstrap
+mv app/assets/stylesheets/application.css app/assets/stylesheets/application.scss
+echo "@import \"refinery/formatting\";
+@import \"refinery/theme\";
+" > app/assets/stylesheets/application.scss
+rake refinery:override stylesheet=refinery/theme
+echo "@import \"bootstrap-sprockets\";
+@import \"bootstrap\";
+" > temporaryfile
+cat app/assets/stylesheets/application.scss >> temporaryfile
+mv temporaryfile app/assets/stylesheets/application.scss
+echo "// This is a manifest file that'll be compiled into application.js, which will include all the files
+// listed below.
+//
+// Any JavaScript/Coffee file within this directory, lib/assets/javascripts, vendor/assets/javascripts,
+// or any plugin's vendor/assets/javascripts directory can be referenced here using a relative path.
+//
+// It's not advisable to add code directly here, but if you do, it'll appear at the bottom of the
+// compiled file.
+//
+// Read Sprockets README (https://github.com/rails/sprockets#sprockets-directives) for details
+// about supported directives.
+//
+//= require jquery
+//= require bootstrap-sprockets
+//= require jquery_ujs
+//= require_tree .
+" > app/assets/javascripts/application.js
+rake refinery:override view=refinery/pages/show.html
+echo "<div class=\"container\">
+  <%= render '/refinery/content_page' %>
+</div>
+" > app/views/refinery/pages/show.html.erb
+rake refinery:override view=refinery/_header.html
+# ------ HEADER -----------------------------------------------------------------------------
+echo "<nav class=\"navbar navbar-default\" role=\"navigation\">
+    <div class=\"container\">
+
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class=\"navbar-header\">
+            <button type=\"button\" class=\"navbar-toggle\" data-toggle=\"collapse\" data-target=\"#bs-example-navbar-collapse-1\">
+                <span class=\"sr-only\">Toggle navigation</span>
+                <span class=\"icon-bar\"></span>
+                <span class=\"icon-bar\"></span>
+                <span class=\"icon-bar\"></span>
+            </button>
+            <a class=\"navbar-brand\" href=\"#\"><%=Refinery::Core::site_name %></a>
+        </div>
+
+        <!-- Collect the nav links, forms, and other content for toggling -->
+        <div class=\"collapse navbar-collapse\" id=\"bs-example-navbar-collapse-1\">
+            <%= Refinery::Pages::MenuPresenter.new(refinery_menu_pages, self).to_html %>
+        </div>
+    </div>
+</nav>
+" > app/views/refinery/_header.html.erb
+# -------------------------------------------------------------------------------------------
+rake refinery:override presenter=refinery/pages/menu_presenter
+# ------ BOOTSTRAP MENU PRESENTER -----------------------------------------------------------
+echo "require 'active_support/core_ext/string'
+require 'active_support/configurable'
+require 'action_view/helpers/tag_helper'
+require 'action_view/helpers/url_helper'
+
+module Refinery
+    module Pages
+        class MenuPresenter
+            include ActionView::Helpers::TagHelper
+            include ActionView::Helpers::UrlHelper
+            include ActiveSupport::Configurable
+
+            config_accessor :roots, :list_tag, :list_item_tag, :css, :dom_id,
+                                            :max_depth, :selected_css, :first_css, :last_css, :list_first_css,
+                                            :list_dropdown_css, :list_item_dropdown_css,
+                                            :list_item__css, :link_dropdown_options, :carret
+
+            # self.dom_id = nil
+            # self.css = \"pull-left\"
+            self.list_tag = :ul
+            self.list_first_css = [\"nav\", \"navbar-nav\", \"navbar-right\"]
+            self.carret = '<b class=\"caret\"></b>'
+            self.list_dropdown_css = \"dropdown-menu\"
+            self.link_dropdown_options = {class: \"dropdown-toggle\", data: {:toggle=>\"dropdown\"}}
+            self.list_item_tag = :li
+            self.list_item_dropdown_css = :dropdown
+            self.list_item__css = nil
+            self.selected_css = :active
+            self.first_css = :first
+            self.last_css = :last
+
+            def roots
+                config.roots.presence || collection.roots
+            end
+
+            attr_accessor :context, :collection
+            delegate :output_buffer, :output_buffer=, :to => :context
+
+            def initialize(collection, context)
+                @collection = collection
+                @context = context
+            end
+
+            def to_html
+                render_menu(roots) if roots.present?
+            end
+
+            private
+            def render_menu(items)
+                render_menu_items(items)
+            end
+
+            def render_menu_items(menu_items)
+                if menu_items.present?
+                    content_tag(list_tag, :class => menu_items_css(menu_items)) do
+                        menu_items.each_with_index.inject(ActiveSupport::SafeBuffer.new) do |buffer, (item, index)|
+                            buffer << render_menu_item(item, index)
+                        end
+                    end
+                end
+            end
+
+            def render_menu_item(menu_item, index)
+                content_tag(list_item_tag, :class => menu_item_css(menu_item, index)) do
+                    @cont = context.refinery.url_for(menu_item.url)
+                    buffer = ActiveSupport::SafeBuffer.new
+                        if check_for_dropdown_item(menu_item)
+                            buffer << link_to((menu_item.title+carret).html_safe, \"#\", link_dropdown_options)
+                        else
+                            buffer << link_to(menu_item.title, context.refinery.url_for(menu_item.url))
+                        end
+                    buffer << render_menu_items(menu_item_children(menu_item))
+                    buffer
+                end
+            end
+
+            def check_for_dropdown_item(menu_item)
+                (menu_item!=roots.first)&&(menu_item_children(menu_item).count > 0)
+            end
+
+            # Determines whether any item underneath the supplied item is the current item according to rails.
+            # Just calls selected_item? for each descendant of the supplied item
+            # unless it first quickly determines that there are no descendants.
+            def descendant_item_selected?(item)
+                item.has_children? && item.descendants.any?(&method(:selected_item?))
+            end
+
+            def selected_item_or_descendant_item_selected?(item)
+                selected_item?(item) || descendant_item_selected?(item)
+            end
+
+            # Determine whether the supplied item is the currently open item according to Refinery.
+            def selected_item?(item)
+                path = context.request.path
+                path = path.force_encoding('utf-8') if path.respond_to?(:force_encoding)
+
+                # Ensure we match the path without the locale, if present.
+                if %r{^/#{::I18n.locale}/} === path
+                    path = path.split(%r{^/#{::I18n.locale}}).last.presence || \"/\"
+                end
+
+                # First try to match against a \"menu match\" value, if available.
+                return true if item.try(:menu_match).present? && path =~ Regexp.new(item.menu_match)
+
+                # Find the first url that is a string.
+                url = [item.url]
+                url << ['', item.url[:path]].compact.flatten.join('/') if item.url.respond_to?(:keys)
+                url = url.last.match(%r{^/#{::I18n.locale.to_s}(/.*)}) ? $1 : url.detect{|u| u.is_a?(String)}
+
+                # Now use all possible vectors to try to find a valid match
+                [path, URI.decode(path)].include?(url) || path == \"/#{item.original_id}\"
+            end
+
+            def menu_items_css(menu_items)
+                css = []
+
+                css << list_first_css if (roots == menu_items)
+                css << list_dropdown_css if (roots != menu_items)
+
+                css.reject(&:blank?).presence
+
+            end
+
+            def menu_item_css(menu_item, index)
+                css = []
+
+                css << list_item_dropdown_css if (check_for_dropdown_item(menu_item))
+                css << selected_css if selected_item_or_descendant_item_selected?(menu_item)
+                css << first_css if index == 0
+                css << last_css if index == menu_item.shown_siblings.length
+
+                css.reject(&:blank?).presence
+            end
+
+            def menu_item_children(menu_item)
+                within_max_depth?(menu_item) ? menu_item.children : []
+            end
+
+            def within_max_depth?(menu_item)
+                !max_depth || menu_item.depth < max_depth
+            end
+
+        end
+    end
+end
+" > app/presenters/refinery/pages/menu_presenter.rb
+# -------------------------------------------------------------------------------------------
+
+# Setup Capistrano
+cap install STAGES=production
+echo "
+require 'capistrano/rails'
+require 'capistrano/passenger'
+require 'capistrano/rvm'
+set :rvm_type, :user
+set :rvm_ruby_version, '2.4.1'" >> Capfile
+echo "set :application, \"$1\"
+set :repo_url, \"$2\"
+
+set :deploy_to, '/home/$4/$1'
+
+append :linked_dirs, \"log\", \"tmp/pids\", \"tmp/cache\", \"tmp/sockets\", \"vendor/bundle\", \"public/system\", \"public/uploads\"
+" > config/deploy.rb
+echo "server '$3', user: '$4', roles: %w{app db web}
+" > config/deploy/production.rb
+
+# Setup secret key and database password
+echo "# SQLite version 3.x
+#   gem install sqlite3
+#
+#   Ensure the SQLite 3 gem is defined in your Gemfile
+#   gem 'sqlite3'
+#
+default: &default
+  adapter: sqlite3
+  pool: 5
+  timeout: 5000
+
+development:
+  adapter: postgresql
+  host: 127.0.0.1
+  database: $1
+  username: thabullfrog
+  password: <%= ENV['POSTGRES_PASSWORD'] %>
+  encoding: unicode
+  pool: 5
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  <<: *default
+  database: db/test.sqlite3
+
+production:
+  adapter: postgresql
+  host: 127.0.0.1
+  database: $1
+  username: thabullfrog
+  password: <%= ENV['$6'] %>
+  encoding: unicode
+  pool: 5
+" > config/database.yml
+tac config/secrets.yml | sed "1,1d" | tac > temporaryfile && mv temporaryfile config/secrets.yml
+echo "  secret_key_base: <%= ENV[\"$5\"] %>
+" >> config/secrets.yml
+
+# Setup database
+rake db:drop
+rake db:create
+rake db:migrate
+rake db:seed
+
+# Configure Refinery
+rake refinery:override view=_footer.html
+echo "" > app/views/refinery/_footer.html.erb
+sed -i -e 's@# config.default_parts@config.default_parts@g' config/initializers/refinery/pages.rb
+sed -i -e 's@, {:title=>"Side Body", :slug=>"side_body"}@@g' config/initializers/refinery/pages.rb
+sed -i -e 's@# config.site_name = "Company Name"@config.site_name = "CMS Website"@g' config/initializers/refinery/core.rb
+echo "task :configure_refinery => :environment do
+  Refinery::Page.all.map do |p| 
+    p.update_attribute(:view_template, \"show\") if p.title == \"Home\"
+    p.parts.map do |part|
+      part.destroy if part.slug == \"side_body\"
+    end
+  end
+end
+" > lib/tasks/configure_refinery.rake
+rake configure_refinery
+rm lib/tasks/configure_refinery.rake

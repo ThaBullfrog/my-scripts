@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+import subprocess
+import time
+import sys
+
+app = "gnome-terminal"
+
+get = lambda x: subprocess.check_output(["/bin/bash", "-c", x]).decode("utf-8")
+ws1 = get("wmctrl -lp"); t = 0
+subprocess.Popen(["/bin/bash", "-c", app])
+
+while t < 30:      
+    ws2 = [w.split()[0:3] for w in get("wmctrl -lp").splitlines() if not w in ws1]
+    procs = [[(p, w[0]) for p in get("ps -e ww").splitlines() \
+              if app in p and w[2] in p] for w in ws2]
+    if len(procs) > 0:
+        w_id = procs[0][0][1]
+        cmds = []
+        cmds.append("xdotool windowactivate "+w_id)
+        cmds.append("xdotool keydown ctrl")
+        cmds.append("xdotool key plus")
+        cmds.append("xdotool key plus")
+        cmds.append("sleep 1")
+        cmds.append("xdotool keyup ctrl")
+        cmds.append("xdotool type \"cd "+sys.argv[1]+"\n\"")
+        cmds.append("xdotool keydown ctrl")
+        cmds.append("xdotool key T")
+        cmds.append("xdotool key plus")
+        cmds.append("xdotool key plus")
+        if len(sys.argv) > 2:
+            cmds.append("sleep 1")
+            cmds.append("xdotool keyup ctrl")
+            cmds.append("xdotool type \""+sys.argv[2]+"\n\"")
+            cmds.append("xdotool keydown ctrl")
+        cmds.append("xdotool key T")
+        cmds.append("xdotool key plus")
+        cmds.append("xdotool key plus")
+        if len(sys.argv) > 3:
+            cmds.append("sleep 1")
+            cmds.append("xdotool keyup ctrl")
+            cmds.append("xdotool type \""+sys.argv[3]+"\n\"")
+            cmds.append("xdotool keydown ctrl")
+        cmds.append("xdotool key Page_Down")
+        cmds.append("xdotool keyup ctrl")
+        cmds.append("sleep 1")
+        cmds.append("wmctrl -ir "+w_id+" -b remove,maximized_horz")
+        cmds.append("wmctrl -ir "+w_id+" -b remove,maximized_vert")
+        cmds.append("wmctrl -i -r "+w_id+" -e 0,0,0,1598,259")
+        cmds.append("xdotool windowmove "+procs[0][0][1]+" 320 1753")
+        cmds.append("sleep 1")
+        cmds.append("xdotool type \"subl .\n\"")
+        for cmd in cmds:   
+            subprocess.call(["/bin/bash", "-c", cmd])
+        break
+    time.sleep(0.5)
+    t = t+1

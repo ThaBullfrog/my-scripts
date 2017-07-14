@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# push-database <username> <database> <remote-host>
+
+echo "Remote Database"
+pg_dump -C -h $3 -U $1 $2 -F t -f ~/tmp/postgres_dump
+echo "Local Database"
+pg_restore -h localhost -U $1 -d $2 --clean ~/tmp/postgres_dump
+rm ~/tmp/postgres_dump
